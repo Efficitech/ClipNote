@@ -11,12 +11,12 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "Smart Notes",
-    "default_icon": "Logo.png"
+    "default_icon": "ClipNote.png"
   	},
   	"icons": {
-		"16": "Logo.png",
-		"48": "Logo.png",
-		"128": "Logo.png"
+		"16": "ClipNote.png",
+		"48": "ClipNote.png",
+		"128": "ClipNote.png"
 	},
   "content_scripts": [
     {
