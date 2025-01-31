@@ -1,2 +1,1 @@
-# ClipNote
-Made by Efficitech
+# Smart-notes

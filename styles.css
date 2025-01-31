@@ -23,23 +23,16 @@ input {
 button {
     width: 100%;
     padding: 8px;
-    background-color: #0d7377;
+    background-color: #0D7377;
     color: white;
     border: none;
     cursor: pointer;
     border-radius: 5px;
-    transition: background 0.3s, transform 0.2s, box-shadow 0.2s;
+    transition: background 0.3s;
 }
 
 button:hover {
-    background-color: #0d7377;
-    transform: translateY(-3px); /* Hover effect */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Elevation on hover */
-}
-
-button:active {
-    transform: scale(0.98); /* Slight shrink effect on click */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); /* Subtle shadow on click */
+    background-color: #0D7377;
 }
 
 ul {
@@ -58,12 +51,6 @@ li {
     box-shadow: 1px 1px 5px rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
-    transition: transform 0.2s, opacity 0.2s;
-}
-
-li:hover {
-    transform: translateY(-5px); /* Lift effect */
-    opacity: 0.9; /* Slight opacity change on hover */
 }
 
 /* Styling for buttons inside list items */
@@ -71,7 +58,6 @@ li button {
     width: auto;
     margin-top: 5px;
     padding: 5px;
-    transition: background-color 0.3s, transform 0.2s;
 }
 
 /* Edit button */
@@ -81,11 +67,6 @@ button.editNote {
 
 button.editNote:hover {
     background-color: #e68900;
-    transform: scale(1.1); /* Slightly bigger on hover */
-}
-
-button.editNote:active {
-    transform: scale(0.95); /* Shrink effect on click */
 }
 
 /* Delete button */
@@ -95,11 +76,6 @@ button.deleteNote {
 
 button.deleteNote:hover {
     background-color: #d32f2f;
-    transform: rotate(5deg); /* Fun rotating effect */
-}
-
-button.deleteNote:active {
-    transform: rotate(-3deg); /* Slight opposite rotation on click */
 }
 
 /* Summarize button */
@@ -109,11 +85,6 @@ button.summarizeNote {
 
 button.summarizeNote:hover {
     background-color: #1976D2;
-    transform: scale(1.1);
-}
-
-button.summarizeNote:active {
-    transform: scale(0.95);
 }
 
 /* Minimize/Expand Button */
@@ -126,16 +97,10 @@ button.toggleNote {
     padding: 5px;
     width: 30px;
     margin-right: 5px;
-    transition: transform 0.2s, background-color 0.3s;
 }
 
 button.toggleNote:hover {
     background-color: #0056b3;
-    transform: scale(1.2); /* Fun zoom effect on hover */
-}
-
-button.toggleNote:active {
-    transform: scale(0.9); /* Shrink effect on click */
 }
 
 /* Note content that can be hidden */
