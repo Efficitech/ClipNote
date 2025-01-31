@@ -1,0 +1,2 @@
+# ClipNote
+Made by Efficitech
