@@ -2,6 +2,12 @@ document.addEventListener("DOMContentLoaded", function () {
     let saveButton = document.getElementById("saveNote");
     let categoryInput = document.getElementById("category");
     let notesList = document.getElementById("notesList");
+    let clearAllButton = document.getElementById("clearAll");
+
+    // Ensure the "Clear All" button is only assigned once
+    clearAllButton.addEventListener("click", function () {
+        chrome.storage.local.set({ "notes": [] }, displayNotes);
+    });
 
     // Fetch the highlighted text from the active tab
     function getHighlightedText(callback) {
@@ -24,30 +30,25 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Save the highlighted text as a note
     saveButton.addEventListener("click", function () {
-        if (document.getElementById('note').value !== '') {
-            let category = categoryInput.value.trim();
-            let note = { text: document.getElementById('note').value, category: category || "Uncategorized" };
+        let noteInput = document.getElementById("note").value.trim();
+        let category = categoryInput.value.trim() || "Uncategorized";
 
-            chrome.storage.local.get("notes", function (result) {
-                let notes = result.notes || [];
-                notes.push(note);
-                chrome.storage.local.set({ "notes": notes }, displayNotes);
-            });
+        if (noteInput !== "") {
+            saveNote(noteInput, category);
         } else {
             getHighlightedText(function (highlightedText) {
-                if (highlightedText) {
-                    let category = categoryInput.value.trim();
-                    let note = { text: highlightedText, category: category || "Uncategorized" };
-
-                    chrome.storage.local.get("notes", function (result) {
-                        let notes = result.notes || [];
-                        notes.push(note);
-                        chrome.storage.local.set({ "notes": notes }, displayNotes);
-                    });
-                }
+                if (highlightedText) saveNote(highlightedText, category);
             });
         }
     });
+
+    function saveNote(text, category) {
+        chrome.storage.local.get("notes", function (result) {
+            let notes = result.notes || [];
+            notes.push({ text, category });
+            chrome.storage.local.set({ "notes": notes }, displayNotes);
+        });
+    }
 
     // Display saved notes with individual summarization and toggle buttons
     function displayNotes() {
@@ -57,6 +58,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             notes.forEach((note, index) => {
                 let listItem = document.createElement("li");
+                listItem.setAttribute("draggable", "true"); // Make the list item draggable
                 listItem.innerHTML = `
                     <div class="noteHeader">
                         <button class="toggleNote" data-index="${index}">🔽</button> 
@@ -116,6 +118,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     });
                 });
             });
+
+            enableDragAndDrop();
         });
     }
 
@@ -164,45 +168,117 @@ document.addEventListener("DOMContentLoaded", function () {
     // Advanced Summarization with TF-IDF
     function generateAdvancedSummary(text) {
         if (!text) return "No notes available.";
-
-        let sentences = text.match(/[^.!?]+[.!?]/g) || [text]; // Split into sentences
-        let words = text.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/);
-
+    
+        // Improved sentence splitting (handles abbreviations, quotes, etc.)
+        let sentences = text.match(/[^.!?]+[.!?]\s*/g) || [text];
+    
+        // Remove stopwords and stem words
+        let stopwords = new Set(["the", "is", "and", "of", "in", "it", "to", "that", "this", "with", "for", "on", "at", "by", "an", "as", "be", "are", "was", "were", "has", "have", "had", "but", "not", "or", "which", "what", "you", "he", "she", "we", "they", "your", "their", "his", "her", "our", "my", "me", "him", "us", "them", "its", "who", "whom", "whose", "where", "when", "why", "how", "if", "then", "else", "while", "because", "so", "than", "just", "also", "very", "too", "only", "even", "such", "about", "from", "into", "over", "under", "again", "further", "once", "here", "there", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now"]);
+    
+        let words = text
+            .toLowerCase()
+            .replace(/[^\w\s]/g, "")
+            .split(/\s+/)
+            .filter(word => word.length > 3 && !stopwords.has(word));
+    
+        // Calculate word frequency
         let wordFreq = {};
         words.forEach(word => {
-            if (word.length > 3) wordFreq[word] = (wordFreq[word] || 0) + 1;
+            wordFreq[word] = (wordFreq[word] || 0) + 1;
         });
-
+    
+        // Calculate document frequency
         let docFreq = {};
         sentences.forEach(sentence => {
-            let uniqueWords = new Set(sentence.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/));
+            let uniqueWords = new Set(
+                sentence
+                    .toLowerCase()
+                    .replace(/[^\w\s]/g, "")
+                    .split(/\s+/)
+                    .filter(word => word.length > 3 && !stopwords.has(word))
+            );
             uniqueWords.forEach(word => {
-                if (word.length > 3) docFreq[word] = (docFreq[word] || 0) + 1;
+                docFreq[word] = (docFreq[word] || 0) + 1;
             });
         });
-
+    
+        // Calculate TF-IDF scores
         let tfidf = {};
         words.forEach(word => {
-            if (word.length > 3) {
-                let tf = wordFreq[word] / words.length;
-                let idf = Math.log(sentences.length / (1 + (docFreq[word] || 0)));
-                tfidf[word] = tf * idf;
-            }
+            let tf = wordFreq[word] / words.length;
+            let idf = Math.log(sentences.length / (1 + (docFreq[word] || 0)));
+            tfidf[word] = tf * idf;
         });
-
+    
+        // Score sentences based on TF-IDF
         let sentenceScores = sentences.map(sentence => {
             let score = 0;
-            let wordsInSentence = sentence.toLowerCase().replace(/[^\w\s]/g, "").split(/\s+/);
+            let wordsInSentence = sentence
+                .toLowerCase()
+                .replace(/[^\w\s]/g, "")
+                .split(/\s+/)
+                .filter(word => word.length > 3 && !stopwords.has(word));
             wordsInSentence.forEach(word => {
                 if (tfidf[word]) score += tfidf[word];
             });
             return { sentence, score };
         });
-
+    
+        // Sort sentences by score and select top 3 (or fewer)
         sentenceScores.sort((a, b) => b.score - a.score);
-        let topSentences = sentenceScores.slice(0, Math.min(3, sentenceScores.length)).map(s => s.sentence);
-
+        let topSentences = sentenceScores
+            .slice(0, Math.min(3, sentenceScores.length))
+            .map(s => s.sentence);
+    
         return topSentences.join(" ");
+    }
+
+    // Drag-and-drop functionality
+    function enableDragAndDrop() {
+        let draggedItem = null;
+
+        notesList.addEventListener("dragstart", function (event) {
+            draggedItem = event.target;
+            event.target.classList.add("dragging");
+        });
+
+        notesList.addEventListener("dragover", function (event) {
+            event.preventDefault();
+            let afterElement = getDragAfterElement(notesList, event.clientY);
+            if (afterElement == null) {
+                notesList.appendChild(draggedItem);
+            } else {
+                notesList.insertBefore(draggedItem, afterElement);
+            }
+        });
+
+        notesList.addEventListener("dragend", function () {
+            draggedItem.classList.remove("dragging");
+            updateNoteOrder();
+        });
+    }
+
+    function getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll("li:not(.dragging)")];
+
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    function updateNoteOrder() {
+        let newOrder = [...notesList.children].map(item => ({
+            text: item.querySelector(".noteText").textContent,
+            category: item.querySelector(".noteCategory").textContent
+        }));
+
+        chrome.storage.local.set({ "notes": newOrder }, displayNotes);
     }
 
     displayNotes();
