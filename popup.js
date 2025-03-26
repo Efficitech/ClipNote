@@ -41,40 +41,129 @@ document.addEventListener("DOMContentLoaded", function () {
     ];
 
     // Enhanced Summarization
-    function intelligentSummarize(text) {
-        if (!text || text.length < 50) return text;
-
-        const stopwords = new Set([
-            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 
-            'to', 'for', 'of', 'with', 'by', 'from', 'up', 'about', 
-            'into', 'over', 'is', 'are', 'was', 'were'
-        ]);
-
-        const sentences = text.match(/[^.!?]+[.!?]\s*/g) || [text];
-        
-        // Advanced scoring mechanism
-        const sentenceScores = sentences.map(sentence => {
-            const words = sentence.toLowerCase().match(/\b\w+\b/g) || [];
-            const significantWords = words.filter(word => 
-                word.length > 3 && !stopwords.has(word)
-            );
-
-            return {
-                sentence: sentence.trim(),
-                score: significantWords.length * sentence.length
-            };
-        });
-
-        const topSentences = sentenceScores
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 2)
-            .map(item => item.sentence);
-
-        return topSentences.length > 0 
-            ? topSentences.join(" ") 
-            : text.slice(0, 200);
+    function intelligentSummarize(text, maxLength = 250) {
+        // Early return for short texts
+        if (!text || text.length <= maxLength) return text;
+    
+        // Advanced NLP-inspired preprocessing
+        function preprocessText(rawText) {
+            // Clean and normalize text
+            return rawText
+                .replace(/[^\w\s.!?]/g, '')  // Remove special characters
+                .replace(/\s+/g, ' ')        // Normalize whitespace
+                .trim();
+        }
+    
+        // Simulate neural network-like sentence scoring
+        function scoreSentences(sentences) {
+            // Sophisticated scoring mechanism mimicking transformer-like attention
+            const sentenceScores = sentences.map((sentence, index) => {
+                // Multiple scoring dimensions
+                const wordCount = sentence.split(/\s+/).length;
+                const uniqueWordRatio = calculateUniqueWordRatio(sentence);
+                const semanticSignificance = calculateSemanticSignificance(sentence);
+                const positionWeight = calculatePositionWeight(index, sentences.length);
+    
+                // Complex scoring function simulating neural network weights
+                return {
+                    sentence,
+                    score: (
+                        wordCount * 0.3 +           // Content substantiveness
+                        uniqueWordRatio * 2 +       // Information density
+                        semanticSignificance * 2.5 + // Semantic importance
+                        positionWeight * 1.5        // Structural significance
+                    ),
+                    index
+                };
+            });
+    
+            return sentenceScores;
+        }
+    
+        // Semantic significance calculation
+        function calculateSemanticSignificance(sentence) {
+            // Simulate semantic importance detection
+            const semanticKeywords = [
+                'important', 'key', 'critical', 'primary', 'main', 
+                'fundamental', 'essential', 'significant', 'core', 'central'
+            ];
+    
+            const significantTopics = [
+                'research', 'study', 'analysis', 'findings', 'conclusion', 
+                'result', 'impact', 'evidence', 'theory', 'hypothesis'
+            ];
+    
+            const sentenceLower = sentence.toLowerCase();
+            
+            // Calculate semantic score
+            const keywordBonus = semanticKeywords.reduce((score, keyword) => 
+                score + (sentenceLower.includes(keyword) ? 1.5 : 0), 0);
+            
+            const topicBonus = significantTopics.reduce((score, topic) => 
+                score + (sentenceLower.includes(topic) ? 1.2 : 0), 0);
+    
+            return keywordBonus + topicBonus;
+        }
+    
+        // Unique word ratio calculation
+        function calculateUniqueWordRatio(sentence) {
+            const words = sentence.toLowerCase().split(/\s+/);
+            const uniqueWords = new Set(words);
+            
+            // Penalize repetitive language, reward diverse vocabulary
+            return uniqueWords.size / words.length;
+        }
+    
+        // Position-based weighting
+        function calculatePositionWeight(index, totalSentences) {
+            // Quadratic decay with slight preference for early sentences
+            return Math.max(0, 1 - Math.pow(index / totalSentences, 2));
+        }
+    
+        // Sentence extraction algorithm
+        function extractTopSentences(scoredSentences, maxSentences = 3) {
+            // Sort by score, select top sentences, preserve original order
+            return scoredSentences
+                .sort((a, b) => b.score - a.score)
+                .slice(0, maxSentences)
+                .sort((a, b) => a.index - b.index);
+        }
+    
+        // Main summarization logic
+        try {
+            // Preprocess and tokenize
+            const cleanedText = preprocessText(text);
+            const sentences = cleanedText.match(/[^.!?]+[.!?]+/g) || [cleanedText];
+    
+            // Score sentences
+            const scoredSentences = scoreSentences(sentences);
+    
+            // Extract top sentences
+            const topSentences = extractTopSentences(scoredSentences);
+    
+            // Reconstruct summary
+            let summary = topSentences.map(s => s.sentence).join(' ');
+    
+            // Intelligent truncation
+            if (summary.length > maxLength) {
+                summary = summary
+                    .substring(0, maxLength)
+                    .split(/[.!?]/)
+                    .slice(0, -1)
+                    .join('.');
+                
+                // Append ellipsis if significantly truncated
+                if (summary.length < maxLength / 2) {
+                    summary += '...';
+                }
+            }
+    
+            return summary.length > 10 ? summary : text.substring(0, maxLength);
+        } catch (error) {
+            // Fallback to basic truncation
+            return text.substring(0, maxLength) + '...';
+        }
     }
-
     // Translation Function
     function translateText(text, sourceLang, targetLang) {
         return new Promise((resolve, reject) => {
