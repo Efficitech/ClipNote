@@ -1,129 +1,174 @@
 document.addEventListener("DOMContentLoaded", function () {
-    let saveButton = document.getElementById("saveNote");
-    let categoryInput = document.getElementById("category");
-    let notesList = document.getElementById("notesList");
-    let clearAllButton = document.getElementById("clearAll");
+    const saveButton = document.getElementById("saveNote");
+    const categoryInput = document.getElementById("category");
+    const noteInput = document.getElementById("note");
+    const notesList = document.getElementById("notesList");
+    const clearAllButton = document.getElementById("clearAll");
+    const exportButton = document.getElementById("exportNotes");
+    const importInput = document.getElementById("importNotes");
+    const importButton = document.getElementById("importNotesBtn");
+    const restoreBackupButton = document.getElementById("restoreBackup");
+    displayNotes()
+    // Advanced Categorization
+    const categories = [
+        'Work', 'Personal', 'Research', 'Ideas', 'Quotes', 
+        'Todo', 'Learning', 'Project', 'Inspiration'
+    ];
 
-    // Ensure the "Clear All" button is only assigned once
-    clearAllButton.addEventListener("click", function () {
-        chrome.storage.local.set({ "notes": [] }, displayNotes);
-    });
+    // Enhanced Summarization
+    function intelligentSummarize(text) {
+        if (!text || text.length < 50) return text;
 
-    // Fetch the highlighted text from the active tab
-    function getHighlightedText(callback) {
-        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-            chrome.scripting.executeScript(
-                {
-                    target: { tabId: tabs[0].id },
-                    function: () => window.getSelection().toString().trim()
-                },
-                (results) => {
-                    if (results && results[0].result) {
-                        callback(results[0].result);
-                    } else {
-                        callback(null);
-                    }
-                }
+        const stopwords = new Set([
+            'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 
+            'to', 'for', 'of', 'with', 'by', 'from', 'up', 'about', 
+            'into', 'over', 'is', 'are', 'was', 'were'
+        ]);
+
+        const sentences = text.match(/[^.!?]+[.!?]\s*/g) || [text];
+        
+        // Advanced scoring mechanism
+        const sentenceScores = sentences.map(sentence => {
+            const words = sentence.toLowerCase().match(/\b\w+\b/g) || [];
+            const significantWords = words.filter(word => 
+                word.length > 3 && !stopwords.has(word)
             );
+
+            return {
+                sentence: sentence.trim(),
+                score: significantWords.length * sentence.length
+            };
         });
+
+        const topSentences = sentenceScores
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 2)
+            .map(item => item.sentence);
+
+        return topSentences.length > 0 
+            ? topSentences.join(" ") 
+            : text.slice(0, 200);
     }
 
-    // Save the highlighted text as a note
-    saveButton.addEventListener("click", function () {
-        let noteInput = document.getElementById("note").value.trim();
-        let category = categoryInput.value.trim() || "Uncategorized";
+    // Smart Category Suggestion
+    function suggestCategory(text) {
+        const categoryRules = {
+            'Work': ['project', 'meeting', 'deadline', 'work', 'client', 'task'],
+            'Personal': ['family', 'health', 'hobby', 'friend', 'personal'],
+            'Research': ['study', 'research', 'data', 'analysis', 'scientific'],
+            'Ideas': ['idea', 'concept', 'innovation', 'create', 'design'],
+            'Quotes': ['quote', 'said', 'wisdom', 'inspiration'],
+            'Todo': ['todo', 'task', 'reminder', 'checklist', 'plan']
+        };
 
-        if (noteInput !== "") {
-            saveNote(noteInput, category);
-        } else {
-            getHighlightedText(function (highlightedText) {
-                if (highlightedText) saveNote(highlightedText, category);
-            });
-        }
-    });
+        const lowerText = text.toLowerCase();
+        
+        const matchedCategory = Object.entries(categoryRules)
+            .map(([category, keywords]) => ({
+                category,
+                score: keywords.filter(keyword => 
+                    lowerText.includes(keyword)
+                ).length
+            }))
+            .sort((a, b) => b.score - a.score)[0];
 
-    function saveNote(text, category) {
+        return matchedCategory.score > 0 
+            ? matchedCategory.category 
+            : 'Uncategorized';
+    }
+
+    // Save note with enhanced features
+    function saveNote(text, manualCategory = null) {
+        const trimmedText = text.trim();
+        if (!trimmedText) return;
+
         chrome.storage.local.get("notes", function (result) {
             let notes = result.notes || [];
-            notes.push({ text, category });
+            
+            // Use manual category or suggest one
+            const category = manualCategory || 
+                suggestCategory(trimmedText) || 
+                'Uncategorized';
+
+            notes.push({ 
+                text: trimmedText, 
+                category: category,
+                summary: intelligentSummarize(trimmedText),
+                timestamp: Date.now(),
+                id: Math.random().toString(36).substr(2, 9)
+            });
+
             chrome.storage.local.set({ "notes": notes }, displayNotes);
         });
     }
 
-    // Display saved notes with individual summarization and toggle buttons
+    // Enhanced note display
     function displayNotes() {
         chrome.storage.local.get("notes", function (result) {
             notesList.innerHTML = "";
             let notes = result.notes || [];
+            
+            // Sort by most recent
+            notes.sort((a, b) => b.timestamp - a.timestamp);
 
             notes.forEach((note, index) => {
                 let listItem = document.createElement("li");
-                listItem.setAttribute("draggable", "true"); // Make the list item draggable
                 listItem.innerHTML = `
-                    <div class="noteHeader">
-                        <button class="toggleNote" data-index="${index}">🔽</button> 
-                        <span class="noteCategory">${note.category}</span>
+                    <div class="note-header">
+                        <span class="category-tag">${note.category}</span>
+                        <span class="timestamp">
+                            ${new Date(note.timestamp).toLocaleString()}
+                        </span>
                     </div>
-                    <div class="noteContent" id="noteContent-${index}" style="display: block;">
-                        <p><span class="noteText">${note.text}</span></p>
-                        <button class="editNote" data-index="${index}">✏️</button>
-                        <button class="deleteNote" data-index="${index}">🗑️</button>
-                        <button class="summarizeNote" data-index="${index}">🔍 Summarize</button>
-                        <p class="summaryOutput" id="summary-${index}" style="display: none;"></p>
+                    <div class="note-content">
+                        <p class="note-text">${note.text}</p>
+                        <div class="note-summary">
+                            <strong>Summary:</strong> ${note.summary}
+                        </div>
+                    </div>
+                    <div class="note-actions">
+                        <button class="edit-btn" data-index="${index}">✏️ Edit</button>
+                        <button class="delete-btn" data-index="${index}">🗑️ Delete</button>
                     </div>
                 `;
                 notesList.appendChild(listItem);
             });
 
-            // Add event listeners for toggle buttons
-            document.querySelectorAll(".toggleNote").forEach(button => {
-                button.addEventListener("click", function () {
-                    let index = this.getAttribute("data-index");
-                    let content = document.getElementById(`noteContent-${index}`);
-                    if (content.style.display === "none") {
-                        content.style.display = "block";
-                        content.style.maxHeight = content.scrollHeight + "px";
-                        this.textContent = "🔽";
-                    } else {
-                        content.style.maxHeight = "0";
-                        setTimeout(() => (content.style.display = "none"), 300);
-                        this.textContent = "▶️";
-                    }
+            // Event listeners for edit and delete
+            document.querySelectorAll('.edit-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    let index = this.getAttribute('data-index');
+                    editNote(index);
                 });
             });
 
-            // Add event listeners for delete and edit buttons
-            document.querySelectorAll(".deleteNote").forEach(button => {
-                button.addEventListener("click", function () {
-                    deleteNote(this.getAttribute("data-index"));
+            document.querySelectorAll('.delete-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    let index = this.getAttribute('data-index');
+                    deleteNote(index);
                 });
             });
-
-            document.querySelectorAll(".editNote").forEach(button => {
-                button.addEventListener("click", function () {
-                    editNote(this.getAttribute("data-index"));
-                });
-            });
-
-            // Add event listeners for individual summarization
-            document.querySelectorAll(".summarizeNote").forEach(button => {
-                button.addEventListener("click", function () {
-                    let index = this.getAttribute("data-index");
-                    chrome.storage.local.get("notes", function (result) {
-                        let notes = result.notes || [];
-                        let summary = generateAdvancedSummary(notes[index].text);
-                        let summaryElement = document.getElementById(`summary-${index}`);
-                        summaryElement.textContent = summary || "No important points found.";
-                        summaryElement.style.display = "block"; // Show summary
-                    });
-                });
-            });
-
-            enableDragAndDrop();
         });
     }
 
-    // Delete a note
+    // Edit note with category preservation
+    function editNote(index) {
+        chrome.storage.local.get("notes", function (result) {
+            let notes = result.notes || [];
+            let note = notes[index];
+            
+            let newText = prompt("Edit your note:", note.text);
+            
+            if (newText !== null) {
+                notes[index].text = newText;
+                notes[index].summary = intelligentSummarize(newText);
+                
+                chrome.storage.local.set({ "notes": notes }, displayNotes);
+            }
+        });
+    }
+
+    // Delete specific note
     function deleteNote(index) {
         chrome.storage.local.get("notes", function (result) {
             let notes = result.notes || [];
@@ -132,154 +177,82 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Edit a note
-    function editNote(index) {
-        chrome.storage.local.get("notes", function (result) {
-            let notes = result.notes || [];
-            let note = notes[index];
-            let noteTextElement = document.querySelector(`#noteContent-${index} .noteText`);
+    // Event Listeners
+    saveButton.addEventListener("click", function () {
+        let noteText = noteInput.value.trim();
+        let category = categoryInput.value.trim();
 
-            // Make note content editable
-            noteTextElement.setAttribute("contenteditable", "true");
-            noteTextElement.focus();
+        if (noteText) {
+            saveNote(noteText, category);
+            noteInput.value = '';
+            categoryInput.value = '';
+        }
+    });
 
-            // Add a save button inside the note content
-            let saveButton = document.createElement("button");
-            saveButton.textContent = "Save";
-            saveButton.classList.add("saveNote");
-            document.body.appendChild(saveButton);
+    clearAllButton.addEventListener("click", function () {
+        if (confirm("Are you sure you want to delete all notes?")) {
+            chrome.storage.local.set({ "notes": [] }, displayNotes);
+        }
+    });
 
-            // Handle save button click
-            saveButton.addEventListener("click", function () {
-                let newText = noteTextElement.textContent.trim();
-
-                if (newText && newText !== note.text) {
-                    note.text = newText; // Update the note text
-                    chrome.storage.local.set({ "notes": notes }, displayNotes);
-                }
-
-                // Disable editing and remove save button
-                noteTextElement.removeAttribute("contenteditable");
-                saveButton.remove();
+    // Export functionality
+    exportButton.addEventListener("click", function() {
+        noteSyncManager.exportNotes()
+            .then(result => {
+                alert(`Exported ${result.notesCount} notes successfully!`);
+            })
+            .catch(error => {
+                alert('Export failed: ' + error.message);
             });
-        });
-    }
+    });
 
-    // Advanced Summarization with TF-IDF
-    function generateAdvancedSummary(text) {
-        if (!text) return "No notes available.";
-    
-        // Improved sentence splitting (handles abbreviations, quotes, etc.)
-        let sentences = text.match(/[^.!?]+[.!?]\s*/g) || [text];
-    
-        // Remove stopwords and stem words
-        let stopwords = new Set(["the", "is", "and", "of", "in", "it", "to", "that", "this", "with", "for", "on", "at", "by", "an", "as", "be", "are", "was", "were", "has", "have", "had", "but", "not", "or", "which", "what", "you", "he", "she", "we", "they", "your", "their", "his", "her", "our", "my", "me", "him", "us", "them", "its", "who", "whom", "whose", "where", "when", "why", "how", "if", "then", "else", "while", "because", "so", "than", "just", "also", "very", "too", "only", "even", "such", "about", "from", "into", "over", "under", "again", "further", "once", "here", "there", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now"]);
-    
-        let words = text
-            .toLowerCase()
-            .replace(/[^\w\s]/g, "")
-            .split(/\s+/)
-            .filter(word => word.length > 3 && !stopwords.has(word));
-    
-        // Calculate word frequency
-        let wordFreq = {};
-        words.forEach(word => {
-            wordFreq[word] = (wordFreq[word] || 0) + 1;
-        });
-    
-        // Calculate document frequency
-        let docFreq = {};
-        sentences.forEach(sentence => {
-            let uniqueWords = new Set(
-                sentence
-                    .toLowerCase()
-                    .replace(/[^\w\s]/g, "")
-                    .split(/\s+/)
-                    .filter(word => word.length > 3 && !stopwords.has(word))
+    // Import functionality
+    importButton.addEventListener("click", () => {
+        importInput.click();
+    });
+
+    importInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            try {
+                const result = await noteSyncManager.importNotes(file);
+                alert(`Imported ${result.importedCount} notes. Total notes now: ${result.totalNotes}`);
+                displayNotes();
+            } catch (error) {
+                alert('Import failed: ' + error.message);
+            }
+        }
+    });
+
+    // Restore from backup
+    restoreBackupButton.addEventListener("click", async () => {
+        chrome.storage.local.get(['noteBackups'], async (result) => {
+            const backups = result.noteBackups || [];
+            
+            if (backups.length === 0) {
+                alert('No backups available');
+                return;
+            }
+
+            const backupChoice = prompt(
+                `Select backup to restore (0-${backups.length - 1}). ` +
+                'Backups are ordered from most recent to oldest.'
             );
-            uniqueWords.forEach(word => {
-                docFreq[word] = (docFreq[word] || 0) + 1;
-            });
-        });
-    
-        // Calculate TF-IDF scores
-        let tfidf = {};
-        words.forEach(word => {
-            let tf = wordFreq[word] / words.length;
-            let idf = Math.log(sentences.length / (1 + (docFreq[word] || 0)));
-            tfidf[word] = tf * idf;
-        });
-    
-        // Score sentences based on TF-IDF
-        let sentenceScores = sentences.map(sentence => {
-            let score = 0;
-            let wordsInSentence = sentence
-                .toLowerCase()
-                .replace(/[^\w\s]/g, "")
-                .split(/\s+/)
-                .filter(word => word.length > 3 && !stopwords.has(word));
-            wordsInSentence.forEach(word => {
-                if (tfidf[word]) score += tfidf[word];
-            });
-            return { sentence, score };
-        });
-    
-        // Sort sentences by score and select top 3 (or fewer)
-        sentenceScores.sort((a, b) => b.score - a.score);
-        let topSentences = sentenceScores
-            .slice(0, Math.min(3, sentenceScores.length))
-            .map(s => s.sentence);
-    
-        return topSentences.join(" ");
-    }
 
-    // Drag-and-drop functionality
-    function enableDragAndDrop() {
-        let draggedItem = null;
+            const backupIndex = parseInt(backupChoice);
 
-        notesList.addEventListener("dragstart", function (event) {
-            draggedItem = event.target;
-            event.target.classList.add("dragging");
-        });
-
-        notesList.addEventListener("dragover", function (event) {
-            event.preventDefault();
-            let afterElement = getDragAfterElement(notesList, event.clientY);
-            if (afterElement == null) {
-                notesList.appendChild(draggedItem);
-            } else {
-                notesList.insertBefore(draggedItem, afterElement);
+            if (!isNaN(backupIndex)) {
+                try {
+                    const restoreResult = await noteSyncManager.restoreFromBackup(backupIndex);
+                    alert(`Restored ${restoreResult.restoredNotesCount} notes from backup.`);
+                    displayNotes();
+                } catch (error) {
+                    alert('Restore failed: ' + error.message);
+                }
             }
         });
+    });
 
-        notesList.addEventListener("dragend", function () {
-            draggedItem.classList.remove("dragging");
-            updateNoteOrder();
-        });
-    }
-
-    function getDragAfterElement(container, y) {
-        const draggableElements = [...container.querySelectorAll("li:not(.dragging)")];
-
-        return draggableElements.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
-            const offset = y - box.top - box.height / 2;
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
-            }
-        }, { offset: Number.NEGATIVE_INFINITY }).element;
-    }
-
-    function updateNoteOrder() {
-        let newOrder = [...notesList.children].map(item => ({
-            text: item.querySelector(".noteText").textContent,
-            category: item.querySelector(".noteCategory").textContent
-        }));
-
-        chrome.storage.local.set({ "notes": newOrder }, displayNotes);
-    }
-
+    // Initial display
     displayNotes();
 });
