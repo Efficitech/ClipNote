@@ -8,7 +8,32 @@ document.addEventListener("DOMContentLoaded", function () {
     const importInput = document.getElementById("importNotes");
     const importButton = document.getElementById("importNotesBtn");
     const restoreBackupButton = document.getElementById("restoreBackup");
-    displayNotes()
+
+    // Language list for translation
+    const languageCodes = {
+        'English': 'en',
+        'Spanish': 'es',
+        'French': 'fr',
+        'German': 'de',
+        'Italian': 'it',
+        'Portuguese': 'pt',
+        'Russian': 'ru',
+        'Chinese': 'zh',
+        'Japanese': 'ja',
+        'Korean': 'ko',
+        'Arabic': 'ar'
+    };
+
+    displayNotes();
+
+	 chrome.storage.local.get("highlightedText", function(result) {
+        if (result.highlightedText) {
+            noteInput.value = result.highlightedText;
+            // Optional: Clear the stored text after loading
+            chrome.storage.local.remove("highlightedText");
+        }
+    });
+
     // Advanced Categorization
     const categories = [
         'Work', 'Personal', 'Research', 'Ideas', 'Quotes', 
@@ -48,6 +73,25 @@ document.addEventListener("DOMContentLoaded", function () {
         return topSentences.length > 0 
             ? topSentences.join(" ") 
             : text.slice(0, 200);
+    }
+
+    // Translation Function
+    function translateText(text, sourceLang, targetLang) {
+        return new Promise((resolve, reject) => {
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    // Extract translated text from the response
+                    const translatedText = data[0][0][0];
+                    resolve(translatedText);
+                })
+                .catch(error => {
+                    console.error('Translation error:', error);
+                    reject(error);
+                });
+        });
     }
 
     // Smart Category Suggestion
@@ -129,6 +173,21 @@ document.addEventListener("DOMContentLoaded", function () {
                     <div class="note-actions">
                         <button class="edit-btn" data-index="${index}">✏️ Edit</button>
                         <button class="delete-btn" data-index="${index}">🗑️ Delete</button>
+                        <button class="translate-btn" data-index="${index}">🌐 Translate</button>
+                    </div>
+                    <div class="translation-container" style="display:none;">
+                        <select class="source-lang">
+                            ${Object.entries(languageCodes).map(([name, code]) => 
+                                `<option value="${code}">${name}</option>`
+                            ).join('')}
+                        </select>
+                        <select class="target-lang">
+                            ${Object.entries(languageCodes).map(([name, code]) => 
+                                `<option value="${code}">${name}</option>`
+                            ).join('')}
+                        </select>
+                        <button class="do-translate-btn">Translate</button>
+                        <div class="translated-text"></div>
                     </div>
                 `;
                 notesList.appendChild(listItem);
@@ -146,6 +205,36 @@ document.addEventListener("DOMContentLoaded", function () {
                 button.addEventListener('click', function() {
                     let index = this.getAttribute('data-index');
                     deleteNote(index);
+                });
+            });
+
+            // New translation event listeners
+            document.querySelectorAll('.translate-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const translationContainer = this.closest('li').querySelector('.translation-container');
+                    translationContainer.style.display = 
+                        translationContainer.style.display === 'none' ? 'block' : 'none';
+                });
+            });
+
+            document.querySelectorAll('.do-translate-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const container = this.closest('.translation-container');
+                    const sourceLangSelect = container.querySelector('.source-lang');
+                    const targetLangSelect = container.querySelector('.target-lang');
+                    const translatedTextDiv = container.querySelector('.translated-text');
+                    const noteText = this.closest('li').querySelector('.note-text').textContent;
+
+                    const sourceLang = sourceLangSelect.value;
+                    const targetLang = targetLangSelect.value;
+
+                    translateText(noteText, sourceLang, targetLang)
+                        .then(translatedText => {
+                            translatedTextDiv.textContent = translatedText;
+                        })
+                        .catch(error => {
+                            translatedTextDiv.textContent = 'Translation failed';
+                        });
                 });
             });
         });
@@ -177,6 +266,100 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    // Export functionality
+    function exportNotes() {
+        return new Promise((resolve, reject) => {
+            chrome.storage.local.get("notes", function (result) {
+                const notes = result.notes || [];
+                const blob = new Blob([JSON.stringify(notes, null, 2)], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `notes_backup_${new Date().toISOString().replace(/:/g, '-')}.json`;
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                resolve({ notesCount: notes.length });
+            });
+        });
+    }
+
+    // Import functionality
+    function importNotes(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedNotes = JSON.parse(e.target.result);
+                    
+                    chrome.storage.local.get("notes", function (result) {
+                        let existingNotes = result.notes || [];
+                        const newNotes = [...existingNotes, ...importedNotes];
+                        
+                        chrome.storage.local.set({ "notes": newNotes }, () => {
+                            resolve({
+                                importedCount: importedNotes.length,
+                                totalNotes: newNotes.length
+                            });
+                        });
+                    });
+                } catch (error) {
+                    reject(new Error('Invalid JSON file'));
+                }
+            };
+            reader.readAsText(file);
+        });
+    }
+
+    // Backup functionality
+    function createBackup() {
+        return new Promise((resolve, reject) => {
+            chrome.storage.local.get("notes", function (result) {
+                const notes = result.notes || [];
+                
+                chrome.storage.local.get(['noteBackups'], function(backupResult) {
+                    const backups = backupResult.noteBackups || [];
+                    
+                    // Add current notes as a new backup
+                    backups.unshift({
+                        timestamp: Date.now(),
+                        notes: notes
+                    });
+                    
+                    // Keep only last 5 backups
+                    const limitedBackups = backups.slice(0, 5);
+                    
+                    chrome.storage.local.set({ 'noteBackups': limitedBackups }, () => {
+                        resolve({ backupCount: limitedBackups.length });
+                    });
+                });
+            });
+        });
+    }
+
+    // Restore from backup
+    function restoreFromBackup(backupIndex) {
+        return new Promise((resolve, reject) => {
+            chrome.storage.local.get(['noteBackups'], function(result) {
+                const backups = result.noteBackups || [];
+                
+                if (backupIndex < 0 || backupIndex >= backups.length) {
+                    reject(new Error('Invalid backup index'));
+                    return;
+                }
+                
+                const selectedBackup = backups[backupIndex];
+                
+                chrome.storage.local.set({ "notes": selectedBackup.notes }, () => {
+                    resolve({ 
+                        restoredNotesCount: selectedBackup.notes.length 
+                    });
+                });
+            });
+        });
+    }
+
     // Event Listeners
     saveButton.addEventListener("click", function () {
         let noteText = noteInput.value.trim();
@@ -197,7 +380,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Export functionality
     exportButton.addEventListener("click", function() {
-        noteSyncManager.exportNotes()
+        exportNotes()
             .then(result => {
                 alert(`Exported ${result.notesCount} notes successfully!`);
             })
@@ -215,7 +398,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const file = e.target.files[0];
         if (file) {
             try {
-                const result = await noteSyncManager.importNotes(file);
+                const result = await importNotes(file);
                 alert(`Imported ${result.importedCount} notes. Total notes now: ${result.totalNotes}`);
                 displayNotes();
             } catch (error) {
@@ -243,7 +426,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (!isNaN(backupIndex)) {
                 try {
-                    const restoreResult = await noteSyncManager.restoreFromBackup(backupIndex);
+                    const restoreResult = await restoreFromBackup(backupIndex);
                     alert(`Restored ${restoreResult.restoredNotesCount} notes from backup.`);
                     displayNotes();
                 } catch (error) {
@@ -254,5 +437,4 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // Initial display
-    displayNotes();
 });

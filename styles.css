@@ -185,3 +185,86 @@ li:hover {
 li {
     animation: fadeIn 0.3s ease-out;
 }
+
+/* Existing CSS remains the same, adding new styles for translation */
+.translate-btn {
+    background-color: #27ae60;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.translation-container {
+    background-color: #f4f6f7;
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 10px;
+    border: 1px solid rgba(52, 152, 219, 0.1);
+    animation: fadeIn 0.3s ease-out;
+}
+
+.translation-container select, 
+.translation-container .do-translate-btn {
+    margin: 5px;
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.translation-container select {
+    background-color: white;
+    border: 1px solid var(--secondary-color);
+    color: var(--text-color);
+    flex-grow: 1;
+}
+
+.translation-container .do-translate-btn {
+    background-color: var(--secondary-color);
+    color: white;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.translation-container .do-translate-btn:hover {
+    background-color: var(--primary-color);
+}
+
+.translated-text {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: white;
+    border-radius: 6px;
+    border-left: 4px solid var(--accent-color);
+    font-style: italic;
+    color: #6c757d;
+}
+
+.translation-container .lang-selection {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.translation-container .lang-selection > * {
+    flex: 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .translation-container .lang-selection {
+        flex-direction: column;
+    }
+}
+
+/* Translation button styling */
+.translate-btn {
+    background-color: #27ae60;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.translate-btn:hover {
+    background-color: #2ecc71;
+}
